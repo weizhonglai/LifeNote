@@ -1,105 +1,96 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, FlatList, StyleSheet } from 'react-native';
+import React, {useState} from 'react';
+import {
+  View,
+  Text,
+  FlatList,
+  SafeAreaView,
+  TouchableOpacity,
+} from 'react-native';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {useFocusEffect} from '@react-navigation/native'; // Import useFocusEffect
+import {categoryMapping} from './utils/categories';
+import styles from './utils/style';
 
-const categoryMapping = {
-  'work_and_study': 'Work and Study',
-  'life': 'Life',
-  'health_and_wellness': 'Health and Wellness'
+const HomeScreen = ({navigation}) => {
+  const [categories, setCategories] = useState([]);
+
+  // Define the function to fetch notes
+  const fetchNotes = async () => {
+    try {
+      const notesJson = await AsyncStorage.getItem('notes');
+      const notes = notesJson ? JSON.parse(notesJson) : [];
+      const categoriesMap = notes.reduce((acc, note) => {
+        const {id, category, content, created_at} = note;
+        if (!acc[category]) {
+          acc[category] = [];
+        }
+        acc[category].push({id, content, created_at});
+        return acc;
+      }, {});
+
+      Object.keys(categoriesMap).forEach(key => {
+        categoriesMap[key].sort(
+          (a, b) => new Date(b.created_at) - new Date(a.created_at),
+        );
+        categoriesMap[key] = categoriesMap[key].slice(0, 3);
+      });
+
+      setCategories(Object.entries(categoriesMap));
+    } catch (error) {
+      console.error('Failed to fetch notes', error);
+    }
+  };
+
+  // Use useFocusEffect to run fetchNotes each time the screen is focused
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchNotes();
+    }, []),
+  );
+  return (
+    <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Home</Text>
+        <TouchableOpacity onPress={() => navigation.navigate('Settings')}>
+          <MaterialCommunityIcons
+            name="book-settings"
+            color="#FFFFFF"
+            size={24}
+          />
+        </TouchableOpacity>
+      </View>
+      <FlatList
+        data={categories}
+        keyExtractor={(_, index) => index.toString()}
+        renderItem={({item}) => (
+          <View style={styles.category}>
+            <Text style={styles.categoryTitle}>
+              {categoryMapping[item[0]] || item[0]}
+            </Text>
+            {item[1].map((note, index) => (
+              <TouchableOpacity
+                key={index}
+                style={styles.noteContainer}
+                onPress={() => navigation.navigate('NoteDetail', {note})}>
+                <Text style={styles.noteText}>
+                  {note.content.substring(0, 30) +
+                    (note.content.length > 30 ? '...' : '')}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+        ListEmptyComponent={() => (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>
+              You haven't added any notes, add a new note to show here.
+            </Text>
+          </View>
+        )}
+      />
+    </SafeAreaView>
+  );
 };
-
-const HomeScreen = () => {
-    const [categories, setCategories] = useState([]);
-
-    useEffect(() => {
-        const fetchNotes = async () => {
-            try {
-                const notesJson = await AsyncStorage.getItem('notes');
-                const notes = notesJson ? JSON.parse(notesJson) : [];
-                // 组织笔记数据，并限制每个类别只显示三个最新笔记
-                const categoriesMap = notes.reduce((acc, note) => {
-                    const { category, content, created_at } = note;
-                    if (!acc[category]) {
-                        acc[category] = [];
-                    }
-                    acc[category].push(note);
-                    return acc;
-                }, {});
-
-                // 对每个类别的笔记按 created_at 降序排序，并只保留最新的三条
-                Object.keys(categoriesMap).forEach(key => {
-                    categoriesMap[key].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-                    categoriesMap[key] = categoriesMap[key].slice(0, 3); // 只取最新的三个
-                });
-
-                setCategories(Object.entries(categoriesMap)); // 转换为数组供渲染
-            } catch (error) {
-                console.error('Failed to fetch notes', error);
-            }
-        };
-
-        fetchNotes();
-    }, []);
-
-    return (
-        <View style={styles.container}>
-            <Text style={styles.title}>Home</Text>
-            <FlatList
-                data={categories}
-                keyExtractor={(_, index) => index.toString()}
-                renderItem={({ item }) => (
-                  <View style={styles.category}>
-                    <Text style={styles.categoryTitle}>{categoryMapping[item[0]] || item[0]}</Text>
-                    {item[1].map((note, index) => (
-                        <View key={index} style={styles.noteContainer}>
-                            <Text style={styles.noteText}>{note.content.substring(0, 20) + (note.content.length > 20 ? '...' : '')}</Text>
-                        </View>
-                    ))}
-                  </View>
-                )}
-            />
-        </View>
-    );
-};
-
-const styles = StyleSheet.create({
-  container: {
-      flex: 1,
-      padding: 20,
-      backgroundColor: '#340E59',
-  },
-  title: {
-      fontSize: 24,
-      color: '#FFFFFF',
-      marginBottom: 20,
-  },
-  category: {
-      marginBottom: 20,
-  },
-  categoryTitle: {
-      fontSize: 20,
-      color: '#E70D6F',
-      marginBottom: 10,
-  },
-  noteContainer: {
-      backgroundColor: '#522D6D',
-      paddingHorizontal: 15,
-      paddingVertical: 10,
-      borderRadius: 10,
-      marginBottom: 5,
-      shadowColor: '#000',
-      shadowOffset: {
-          width: 0,
-          height: 2,
-      },
-      shadowOpacity: 0.23,
-      shadowRadius: 2.62,
-      elevation: 4,
-  },
-  noteText: {
-      color: '#FFFFFF',
-      fontSize: 16,
-  },
-});
 
 export default HomeScreen;
